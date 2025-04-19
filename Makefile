@@ -1,28 +1,44 @@
-.PHONY: build generate-proto test integration-test migrate run docker-build docker-run
+.PHONY: dev build test clean logs restart db-shell db-migrate
+
+# Переменные
+DOCKER_COMPOSE = docker-compose
+GO = go
+
+# Основные команды
+dev:
+	$(DOCKER_COMPOSE) up -d
+	@echo "Среда разработки запущена. Доступно по адресу http://localhost:8080"
 
 build:
-	go build -o bin/pvz-api ./cmd/api/main.go
-
-generate-proto:
-	protoc --go_out=. --go_opt=paths=source_relative \
-	--go-grpc_out=. --go-grpc_opt=paths=source_relative \
-	proto/pvz.proto
+	$(DOCKER_COMPOSE) build
 
 test:
-	go test -v ./...
+	$(GO) test ./...
 
-integration-test:
-	go test -v ./test/integration/...
+clean:
+	$(DOCKER_COMPOSE) down -v
+	rm -rf tmp
 
-migrate:
-	migrate -path ./migrations -database "postgres://postgres:postgres@localhost:5432/pvz_service?sslmode=disable" up
+# Команды для работы с базой данных
+db-migrate:
+	$(DOCKER_COMPOSE) exec app /app/scripts/init-db.sh
 
-run:
-	go run ./cmd/api/main.go
+db-reset:
+	$(DOCKER_COMPOSE) down -v
+	$(DOCKER_COMPOSE) up -d
+	@echo "База данных сброшена, ожидаем инициализации..."
+	sleep 10
+	@echo "База данных готова"
 
-docker-build:
-	docker build -t pvz-service .
+# Вспомогательные команды
+logs:
+	$(DOCKER_COMPOSE) logs -f
 
-docker-run:
-	docker-compose up -d
+restart:
+	$(DOCKER_COMPOSE) restart app
 
+db-shell:
+	$(DOCKER_COMPOSE) exec db psql -U postgres -d pvz
+
+service-status:
+	$(DOCKER_COMPOSE) ps

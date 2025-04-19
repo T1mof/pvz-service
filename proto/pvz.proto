@@ -8,9 +8,7 @@ service PVZService {
   rpc ListPVZ(ListPVZRequest) returns (ListPVZResponse) {}
 }
 
-message ListPVZRequest {
-  // Пустой запрос, без параметров
-}
+message ListPVZRequest {}
 
 message PVZ {
   string id = 1;

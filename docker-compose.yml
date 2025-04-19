@@ -1,36 +1,61 @@
 version: '3.8'
 
 services:
-  api:
+  app:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: pvz-service
+    restart: unless-stopped
     ports:
-      - "8080:8080"
-    depends_on:
-      - db
+      - "8080:8080"  # HTTP API
+      - "3000:3000"  # gRPC
+      - "9000:9000"  # Prometheus метрики
     environment:
-      - SERVER_PORT=8080
-      - JWT_SECRET=your_jwt_secret_key
       - DB_HOST=db
       - DB_PORT=5432
+      - DB_NAME=pvz
       - DB_USER=postgres
       - DB_PASSWORD=postgres
-      - DB_NAME=pvz_service
-      - DB_SSLMODE=disable
-    restart: unless-stopped
+      - JWT_SECRET=your_jwt_secret_key
+      - ENVIRONMENT=development
+    depends_on:
+      - db
+    entrypoint: ["/bin/sh", "-c", "./scripts/wait-for-it.sh db:5432 -- ./scripts/init-db.sh && /app/pvz-service"]
+    networks:
+      - pvz-network
 
   db:
-    image: postgres:14
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    image: postgres:14-alpine
+    container_name: pvz-postgres
+    restart: unless-stopped
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=pvz_service
+      - POSTGRES_DB=pvz
     ports:
       - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - pvz-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
     restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - pvz-network
+
+networks:
+  pvz-network:
+    driver: bridge
 
 volumes:
-  postgres_data:
+  postgres-data:
+  prometheus-data:

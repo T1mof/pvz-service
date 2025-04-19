@@ -53,7 +53,7 @@ var (
 
 // InitMetrics инициализирует метрики (при необходимости)
 func InitMetrics() {
-	// Дополнительная инициализация, если требуется
+
 }
 
 // IncrementPVZCreated увеличивает счетчик созданных ПВЗ
@@ -75,23 +75,14 @@ func IncrementProductAdded() {
 func PrometheusMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-
-		// Создаем ResponseWriter-обертку для получения статус-кода
 		ww := newWrappedResponseWriter(w)
 
-		// Вызываем следующий обработчик
 		next.ServeHTTP(ww, r)
 
-		// Получаем длительность запроса
 		duration := time.Since(start).Seconds()
-
-		// Получаем и форматируем статус-код
 		statusCode := strconv.Itoa(ww.status)
 
-		// Увеличиваем счетчик запросов
 		httpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, statusCode).Inc()
-
-		// Записываем время выполнения запроса
 		httpRequestDuration.WithLabelValues(r.Method, r.URL.Path, statusCode).Observe(duration)
 	})
 }
