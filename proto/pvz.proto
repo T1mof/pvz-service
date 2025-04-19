@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package pvz;
 
-option go_package = "pvz-service/proto/pvz";
+option go_package = "pvz-service/proto";
 
 service PVZService {
   rpc ListPVZ(ListPVZRequest) returns (ListPVZResponse) {}

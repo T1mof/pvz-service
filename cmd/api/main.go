@@ -11,6 +11,7 @@ import (
 	"pvz-service/internal/api"
 	"pvz-service/internal/api/middleware"
 	"pvz-service/internal/config"
+	"pvz-service/internal/grpc"
 	"pvz-service/internal/logger"
 	"pvz-service/internal/repository/postgres"
 	"pvz-service/internal/services"
@@ -58,6 +59,14 @@ func main() {
 
 	router := api.NewRouter(authService, pvzService, receptionService, productService)
 
+	var grpcServer *grpc.Server
+
+	go func() {
+		log.Info("gRPC сервер запускается", "port", 3000)
+		grpcServer = grpc.StartGRPCServer(pvzService, 3000)
+		log.Info("gRPC сервер запущен")
+	}()
+
 	router.Use(middleware.LoggingMiddleware(log))
 
 	server := api.NewServer(cfg, router)
@@ -78,6 +87,25 @@ func main() {
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
+
+	if grpcServer != nil {
+		log.Info("завершение работы gRPC сервера...")
+
+		done := make(chan struct{})
+
+		go func() {
+			grpcServer.GracefulStop()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			log.Info("gRPC сервер корректно остановлен")
+		case <-shutdownCtx.Done():
+			log.Warn("превышен таймаут остановки gRPC сервера, принудительное завершение")
+			grpcServer.Stop()
+		}
+	}
 
 	log.Info("завершение работы HTTP сервера...")
 	if err := server.Shutdown(shutdownCtx); err != nil {
