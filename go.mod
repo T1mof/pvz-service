@@ -1,6 +1,8 @@
 module pvz-service
 
-go 1.21.3
+go 1.23.0
+
+toolchain go1.23.8
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
@@ -12,6 +14,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/crypto v0.14.0
+	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0
 )
 
 require (

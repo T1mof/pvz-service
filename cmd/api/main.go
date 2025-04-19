@@ -2,76 +2,96 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"pvz-service/internal/api"
+	"pvz-service/internal/api/middleware"
 	"pvz-service/internal/config"
+	"pvz-service/internal/logger"
 	"pvz-service/internal/repository/postgres"
 	"pvz-service/internal/services"
 )
 
 func main() {
-	// Загружаем конфигурацию
-	cfg := config.LoadConfig()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// Подключаемся к базе данных
+	log := logger.New(logger.Config{
+		Level:       logger.LevelInfo,
+		Format:      "json",
+		Output:      os.Stdout,
+		ServiceName: "pvz-service",
+		Version:     "1.0.0",
+		Environment: os.Getenv("ENVIRONMENT"),
+	})
+
+	slog.SetDefault(log)
+
+	log.Info("приложение запускается", "pid", os.Getpid())
+
+	cfg := config.LoadConfig()
+	log.Debug("конфигурация загружена", "server_port", cfg.ServerPort)
+
 	db, err := postgres.NewDatabase(&cfg.Database)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Error("ошибка подключения к базе данных", "error", err)
+		os.Exit(1)
 	}
-	// Закрытие DB перенесено из defer, будет выполняться явно при завершении
 
-	// Инициализируем репозитории
+	ctx = logger.WithLogger(ctx, log)
+
+	log.Debug("инициализация репозиториев")
 	userRepo := postgres.NewUserRepository(db)
 	pvzRepo := postgres.NewPVZRepository(db)
 	receptionRepo := postgres.NewReceptionRepository(db)
 	productRepo := postgres.NewProductRepository(db)
 
-	// Инициализируем сервисы
+	log.Debug("инициализация сервисов")
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret)
 	pvzService := services.NewPVZService(pvzRepo)
 	receptionService := services.NewReceptionService(receptionRepo, pvzRepo, productRepo)
 	productService := services.NewProductService(productRepo, receptionRepo, pvzRepo)
 
-	// Инициализируем маршрутизатор и сервер
 	router := api.NewRouter(authService, pvzService, receptionService, productService)
+
+	router.Use(middleware.LoggingMiddleware(log))
+
 	server := api.NewServer(cfg, router)
 
-	// Создаем канал для перехвата сигналов
 	quit := make(chan os.Signal, 1)
-	// Подписываемся на сигналы завершения: Ctrl+C, systemd stop, docker stop и т.д.
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
-	// Запускаем сервер в отдельной горутине
 	go func() {
-		log.Printf("Server starting on port %d", cfg.ServerPort)
+		log.Info("HTTP сервер запускается", "port", cfg.ServerPort)
 		if err := server.Start(); err != nil {
-			log.Printf("Server stopped: %v", err)
+			log.Error("HTTP сервер остановлен", "error", err)
+			cancel()
 		}
 	}()
 
-	// Ожидаем сигнал от ОС
-	<-quit
-	log.Println("Shutting down server...")
+	sig := <-quit
+	log.Info("получен сигнал завершения", "signal", sig.String())
 
-	// Создаем контекст с таймаутом для завершения
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
 
-	// Корректно завершаем работу сервера
-	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+	log.Info("завершение работы HTTP сервера...")
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Error("принудительное завершение сервера", "error", err)
+	} else {
+		log.Info("HTTP сервер корректно остановлен")
 	}
 
-	// Закрываем соединение с базой данных
-	log.Println("Closing database connection...")
+	log.Info("закрытие соединения с базой данных...")
 	if err := db.Close(); err != nil {
-		log.Printf("Error closing database connection: %v", err)
+		log.Error("ошибка закрытия соединения с базой данных", "error", err)
+	} else {
+		log.Info("соединение с базой данных закрыто")
 	}
 
-	log.Println("Server exited gracefully")
+	log.Info("приложение корректно завершило работу")
 }
