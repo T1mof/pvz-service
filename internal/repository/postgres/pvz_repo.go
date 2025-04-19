@@ -98,14 +98,12 @@ func (r *PVZRepository) ListPVZ(ctx context.Context, options models.PVZListOptio
 		"has_end_date", !options.EndDate.IsZero(),
 	)
 
-	// Начинаем транзакцию
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		log.Error("ошибка начала транзакции", "error", err)
 		return nil, 0, fmt.Errorf("error starting transaction: %w", err)
 	}
 
-	// Откатываем транзакцию в случае ошибки
 	defer func() {
 		if err != nil {
 			log.Debug("откат транзакции из-за ошибки")
@@ -113,7 +111,6 @@ func (r *PVZRepository) ListPVZ(ctx context.Context, options models.PVZListOptio
 		}
 	}()
 
-	// Устанавливаем значения по умолчанию
 	if options.Limit <= 0 {
 		options.Limit = 10
 		log.Debug("установлено значение limit по умолчанию", "limit", options.Limit)
@@ -128,7 +125,6 @@ func (r *PVZRepository) ListPVZ(ctx context.Context, options models.PVZListOptio
 	var pvzQuery squirrel.SelectBuilder
 	var countQuery squirrel.SelectBuilder
 
-	// Формируем запрос в зависимости от наличия фильтра по датам
 	if !options.StartDate.IsZero() && !options.EndDate.IsZero() {
 		log.Debug("применение фильтра по датам",
 			"start_date", options.StartDate.Format(time.RFC3339),
@@ -165,7 +161,6 @@ func (r *PVZRepository) ListPVZ(ctx context.Context, options models.PVZListOptio
 		countQuery = r.sb.Select("COUNT(*)").From("pvz")
 	}
 
-	// Формируем и выполняем запрос для получения списка ПВЗ
 	pvzSql, pvzArgs, err := pvzQuery.ToSql()
 	if err != nil {
 		log.Error("ошибка построения SQL для списка ПВЗ", "error", err)
@@ -183,7 +178,6 @@ func (r *PVZRepository) ListPVZ(ctx context.Context, options models.PVZListOptio
 	}
 	defer rows.Close()
 
-	// Обрабатываем результаты
 	var pvzsWithReceptions []*models.PVZWithReceptionsResponse
 	for rows.Next() {
 		var pvz models.PVZ
@@ -199,7 +193,6 @@ func (r *PVZRepository) ListPVZ(ctx context.Context, options models.PVZListOptio
 			return nil, 0, err
 		}
 
-		// Получаем продукты для каждой приемки
 		receptionWithProducts := make([]*models.ReceptionWithProducts, 0)
 		for _, reception := range receptions {
 			log.Debug("получение товаров для приемки", "reception_id", reception.ID)
@@ -224,7 +217,6 @@ func (r *PVZRepository) ListPVZ(ctx context.Context, options models.PVZListOptio
 		})
 	}
 
-	// Получаем общее количество для пагинации
 	countSql, countArgs, err := countQuery.ToSql()
 	if err != nil {
 		log.Error("ошибка построения SQL для подсчета ПВЗ", "error", err)
@@ -238,7 +230,6 @@ func (r *PVZRepository) ListPVZ(ctx context.Context, options models.PVZListOptio
 		return nil, 0, fmt.Errorf("error counting total PVZ: %w", err)
 	}
 
-	// Фиксируем транзакцию
 	if err = tx.Commit(); err != nil {
 		log.Error("ошибка фиксации транзакции", "error", err)
 		return nil, 0, fmt.Errorf("error committing transaction: %w", err)
@@ -252,13 +243,11 @@ func (r *PVZRepository) ListPVZ(ctx context.Context, options models.PVZListOptio
 	return pvzsWithReceptions, total, nil
 }
 
-// Вспомогательный метод для получения приемок с помощью транзакции
 func (r *PVZRepository) getReceptionsByPVZIDTx(ctx context.Context, tx *sql.Tx, pvzID uuid.UUID, startDate, endDate time.Time) ([]*models.Reception, error) {
 	log := logger.FromContext(ctx)
 
 	var query squirrel.SelectBuilder
 
-	// Формируем запрос в зависимости от фильтра по датам
 	if !startDate.IsZero() && !endDate.IsZero() {
 		query = r.sb.Select("id", "date_time", "pvz_id", "status").
 			From("receptions").
@@ -302,7 +291,6 @@ func (r *PVZRepository) getReceptionsByPVZIDTx(ctx context.Context, tx *sql.Tx, 
 	return receptions, nil
 }
 
-// Вспомогательный метод для получения товаров с помощью транзакции
 func (r *PVZRepository) getProductsByReceptionIDTx(ctx context.Context, tx *sql.Tx, receptionID uuid.UUID) ([]*models.Product, error) {
 	log := logger.FromContext(ctx)
 
