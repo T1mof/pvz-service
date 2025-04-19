@@ -7,6 +7,7 @@ import (
 	"pvz-service/internal/domain/interfaces"
 	"pvz-service/internal/domain/models"
 	"pvz-service/internal/logger"
+	"pvz-service/internal/metrics"
 
 	"github.com/google/uuid"
 )
@@ -66,6 +67,8 @@ func (s *ProductService) AddProduct(ctx context.Context, pvzID uuid.UUID, produc
 		log.Error("Error creating product", "error", err)
 		return nil, err
 	}
+
+	metrics.IncrementProductAdded()
 
 	log.Info("Product added successfully", "product_id", product.ID, "pvz_id", pvzID, "reception_id", openReception.ID)
 	return product, nil

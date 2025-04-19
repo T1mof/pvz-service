@@ -3,16 +3,20 @@ package main
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"pvz-service/internal/api"
 	"pvz-service/internal/api/middleware"
 	"pvz-service/internal/config"
 	"pvz-service/internal/grpc"
 	"pvz-service/internal/logger"
+	"pvz-service/internal/metrics"
 	"pvz-service/internal/repository/postgres"
 	"pvz-service/internal/services"
 )
@@ -57,7 +61,19 @@ func main() {
 	receptionService := services.NewReceptionService(receptionRepo, pvzRepo, productRepo)
 	productService := services.NewProductService(productRepo, receptionRepo, pvzRepo)
 
+	metrics.InitMetrics()
+
+	metricsServeMux := http.NewServeMux()
+	metricsServeMux.Handle("/metrics", promhttp.Handler())
+	metricsServer := &http.Server{
+		Addr:    ":9000",
+		Handler: metricsServeMux,
+	}
+
 	router := api.NewRouter(authService, pvzService, receptionService, productService)
+
+	router.Use(metrics.PrometheusMiddleware)
+	router.Use(middleware.LoggingMiddleware(log))
 
 	var grpcServer *grpc.Server
 
@@ -67,7 +83,13 @@ func main() {
 		log.Info("gRPC сервер запущен")
 	}()
 
-	router.Use(middleware.LoggingMiddleware(log))
+	go func() {
+		log.Info("Prometheus метрики запускаются", "port", 9000)
+		if err := metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Error("ошибка запуска сервера метрик", "error", err)
+			cancel()
+		}
+	}()
 
 	server := api.NewServer(cfg, router)
 
@@ -87,6 +109,13 @@ func main() {
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
+
+	log.Info("завершение работы сервера метрик...")
+	if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+		log.Error("ошибка завершения сервера метрик", "error", err)
+	} else {
+		log.Info("сервер метрик корректно остановлен")
+	}
 
 	if grpcServer != nil {
 		log.Info("завершение работы gRPC сервера...")

@@ -7,6 +7,7 @@ import (
 	"pvz-service/internal/domain/interfaces"
 	"pvz-service/internal/domain/models"
 	"pvz-service/internal/logger"
+	"pvz-service/internal/metrics"
 
 	"github.com/google/uuid"
 )
@@ -35,6 +36,8 @@ func (s *PVZService) CreatePVZ(ctx context.Context, city string) (*models.PVZ, e
 		log.Error("Error creating PVZ", "error", err, "city", city)
 		return nil, err
 	}
+
+	metrics.IncrementPVZCreated()
 
 	log.Info("PVZ created successfully", "pvz_id", pvz.ID, "city", pvz.City)
 	return pvz, nil

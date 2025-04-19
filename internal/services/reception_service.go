@@ -7,6 +7,7 @@ import (
 	"pvz-service/internal/domain/interfaces"
 	"pvz-service/internal/domain/models"
 	"pvz-service/internal/logger"
+	"pvz-service/internal/metrics"
 
 	"github.com/google/uuid"
 )
@@ -54,6 +55,8 @@ func (s *ReceptionService) CreateReception(ctx context.Context, pvzID uuid.UUID)
 		log.Error("Error creating reception", "error", err, "pvz_id", pvzID)
 		return nil, err
 	}
+
+	metrics.IncrementReceptionCreated()
 
 	log.Info("Reception created successfully", "reception_id", reception.ID, "pvz_id", pvzID)
 	return reception, nil
