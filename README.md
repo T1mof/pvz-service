@@ -19,21 +19,28 @@
 ## Быстрый старт
 
 1. Клонируйте репозиторий
+```bash
 git clone https://github.com/T1mof/pvz-service.git
 cd pvz-service
-
+```
 
 2. Запустите сервисы с помощью Docker Compose
+```bash
 docker-compose up -d
+```
 Или, если у вас установлен Make:
+```bash
 make dev
-
+```
 
 3. Проверьте статус сервисов
+```bash
 docker-compose ps
+```
 Или:
+```bash
 make service-status
-
+```
 
 4. Доступ к сервисам:
 - HTTP API: [http://localhost:8080](http://localhost:8080)
@@ -62,7 +69,9 @@ make service-status
 ### gRPC API
 
 Для доступа к gRPC API можно использовать инструмент grpcurl:
+```bash
 grpcurl -plaintext localhost:3000 pvz.PVZService/ListPVZ
+```
 
 ## Метрики
 
@@ -91,17 +100,22 @@ grpcurl -plaintext localhost:3000 pvz.PVZService/ListPVZ
 - `products` - таблица товаров
 
 ### Подключение напрямую к БД
+```bash
 make db-shell
+```
 
 ### Сброс базы данных
 
 Если вам нужно сбросить базу данных и начать с чистого состояния:
+```bash
 make db-reset
+```
 
 ## Разработка
 
 ### Структура проекта
 
+```bash
 pvz-service/
 ├── cmd/
 │ └── api/
@@ -124,7 +138,7 @@ pvz-service/
 ├── prometheus.yml # Конфигурация Prometheus
 ├── Makefile # Команды для упрощения разработки
 └── README.md # Документация
-
+```
 
 ### Переменные окружения
 
@@ -141,33 +155,42 @@ pvz-service/
 ## Тестирование
 
 Запуск всех тестов:
+```bash
 make test
+```
 
 ## Частые проблемы и их решения
 
 ### Проблемы с подключением к БД
 
 Убедитесь, что контейнер БД запущен и доступен:
+```bash
 docker-compose ps
+```
 
 Проверьте переменные окружения, связанные с подключением к БД.
 
 ### Проблемы с миграциями
 
 Если миграции не применяются автоматически, вы можете выполнить их вручную:
+```bash
 make db-migrate
+```
 
 Если возникают ошибки с миграциями, проверьте логи:
+```bash
 make logs
+```
 
 ### Проблемы с запуском контейнеров
 
 Если контейнеры не запускаются должным образом, проверьте логи:
+```bash
 make logs
+```
 
 Возможно, вам потребуется обновить образы:
+```bash
 docker-compose pull
 make build
-
-## Лицензия
-[MIT](LICENSE)
+```
